@@ -64,7 +64,25 @@ def get_correct_season(date):
         return date.year
         
 df["season"] = df["date"].apply(get_correct_season)
-print("pito")
 # print the number of matches for each season, sorted by season
-print(df["season"].value_counts().sort_index())
+#print(df["season"].value_counts().sort_index())
+
+df["points"] = df["result"].apply(lambda x: 3 if x == "W" else 1 if x == "D" else 0)
+df["points"] = df["points"].astype("int")
+# get the season winners
+# This is a multi-step operation to get the winner of each season:
+# 1. group by season and team, and sum the points for each team in each season
+# 2. sort the results by season and points in descending order
+# 3. group by season and get the team with the highest points for each season
+# 4. reset the index to get a dataframe with season and team columns
+# 5. sort the results by season
+# The result is a dataframe with the season and the winner of that season.
+season_winners = df.groupby(["season", "team"], observed=False)["points"].sum().reset_index() \
+    .sort_values(["season", "points"], ascending=[True, False]) \
+    .groupby("season", observed=False).first()
+
+print(season_winners)
+
+#season_winners.to_csv(f"{DATASET_FOLDER}/season_winners.csv", index=False)
+
 
