@@ -201,3 +201,29 @@ df_sorted['result_encoded'] = pd.to_numeric(df_sorted['result'].map({'W': 1, 'D'
 df_sorted['form'] = calculate_rolling_average(df_sorted, 'result_encoded')
 df_sorted['goal_diff'] = df_sorted['gf'] - df_sorted['ga']
 df_sorted['rolling_goal_diff'] = calculate_rolling_average(df_sorted, 'goal_diff')
+
+
+
+# Head-to-Head Record
+def get_head_to_head(data):
+    """
+    Calculate the head-to-head record against each opponent.
+    
+    Returns:
+    DataFrame: The original dataframe with an additional column for head-to-head record
+    """
+    # Calculate the mean result for each team-opponent pair
+    h2h = data.groupby(['team', 'opponent'], observed=False)['result_encoded'].mean().reset_index()
+    
+    # Rename the mean column
+    h2h = h2h.rename(columns={'result_encoded': 'h2h_record'})
+    
+    # Merge the h2h data back to the original dataframe
+    result = pd.merge(data, h2h, on=['team', 'opponent'], how='left')
+    
+    return result
+
+df_sorted = get_head_to_head(df_sorted)
+
+# Convert date to day of week
+df_sorted['day_of_week'] = pd.to_datetime(df_sorted['date']).dt.dayofweek
