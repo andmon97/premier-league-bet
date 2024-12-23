@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 pd.set_option('display.max_columns', None)
 
 import warnings
@@ -123,3 +125,79 @@ def verify_sorting(data):
 
 # Run the verification
 verify_sorting(df_sorted)
+
+# numeric features
+num_cols = ['sh', 'sot', 'dist', 'fk', 'pk', 'pkatt', 'xga', 'xg', 'gf', 'ga']
+for col in num_cols:
+    df_sorted[col] = pd.to_numeric(df_sorted[col])
+# use to calculate ratios for free kick and penalty kicks
+def calculate_fk_pk_ratios(data):
+
+    data['fk_ratio'] = data['fk'] / data['sh']
+    
+    data['pk_conversion_rate'] = data['pk'] / data['pkatt']
+    
+    data['pk_per_shot'] = data['pkatt'] / data['sh']
+    
+    data['fk_ratio'] = data['fk_ratio'].replace([np.inf, -np.inf], np.nan)
+    data['pk_conversion_rate'] = data['pk_conversion_rate'].replace([np.inf, -np.inf], np.nan)
+    data['pk_per_shot'] = data['pk_per_shot'].replace([np.inf, -np.inf], np.nan)
+    
+    data['fk_percentage'] = data['fk_ratio'] * 100
+    data['pk_conversion_percentage'] = data['pk_conversion_rate'] * 100
+    data['pk_per_shot_percentage'] = data['pk_per_shot'] * 100
+    
+    return data
+# apply the ratios on the sorted dataframe and visualize
+df_sorted = calculate_fk_pk_ratios(df_sorted)
+df_sorted.drop(['pk_conversion_rate', 'pk_conversion_percentage'], axis=1, inplace=True)
+fig, axs = plt.subplots(2, 2, figsize=(12, 6))
+i = 0
+for col in ['fk_ratio', 'pk_per_shot', 'fk_percentage', 'pk_per_shot_percentage']:
+    sns.histplot(df_sorted[col], kde=True, ax=axs.flatten()[i])
+    axs.flatten()[i].set_title('Distribution of ' + col)
+    i += 1
+
+plt.tight_layout()
+plt.show()
+# print stats for ratios
+fig, axs = plt.subplots(2, 2, figsize=(12, 6))
+i = 0
+for col in ['fk_ratio', 'pk_per_shot', 'fk_percentage', 'pk_per_shot_percentage']:
+    sns.boxplot(x=df_sorted[col], ax=axs.flatten()[i])  # Changed to boxplot
+    axs.flatten()[i].set_title('Distribution of ' + col)
+    i += 1
+print(df_sorted[['fk_ratio', 'pk_per_shot', 'fk_percentage', 'pk_per_shot_percentage']].agg(['mean', 'min', 'max']))
+plt.tight_layout()
+plt.show()
+
+
+
+# compute rolling average for each team of numeric stats
+def calculate_rolling_average(data, column, window=5):
+    """
+    Calculate the rolling average of a column for each team.
+    
+    Parameters:
+    data (DataFrame): The input DataFrame
+    column (str): The column to calculate the rolling average for
+    window (int): The number of games to include in the rolling average
+    
+    Returns:
+    Series: The rolling average
+    """
+    return data.groupby('team', observed=False)[column].transform(
+        lambda x: x.rolling(window=window, min_periods=1).mean()
+    )
+
+df_sorted['rolling_xg'] = calculate_rolling_average(df_sorted, 'xg')
+df_sorted['rolling_xga'] = calculate_rolling_average(df_sorted, 'xga')
+df_sorted['rolling_poss'] = calculate_rolling_average(df_sorted, 'poss')
+df_sorted['rolling_sh'] = calculate_rolling_average(df_sorted, 'sh')
+df_sorted['rolling_sot'] = calculate_rolling_average(df_sorted, 'sot')
+df_sorted['rolling_dist'] = calculate_rolling_average(df_sorted, 'dist')
+
+df_sorted['result_encoded'] = pd.to_numeric(df_sorted['result'].map({'W': 1, 'D': 0, 'L': -1}))
+df_sorted['form'] = calculate_rolling_average(df_sorted, 'result_encoded')
+df_sorted['goal_diff'] = df_sorted['gf'] - df_sorted['ga']
+df_sorted['rolling_goal_diff'] = calculate_rolling_average(df_sorted, 'goal_diff')
