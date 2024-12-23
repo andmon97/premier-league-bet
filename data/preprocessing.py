@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 pd.set_option('display.max_columns', None)
 
 import warnings
@@ -82,7 +83,43 @@ season_winners = df.groupby(["season", "team"], observed=False)["points"].sum().
     .groupby("season", observed=False).first()
 
 print(season_winners)
+df['season_winner'] = df['season'].map(season_winners['team'])
 
-#season_winners.to_csv(f"{DATASET_FOLDER}/season_winners.csv", index=False)
 
 
+def captains_func(data):
+    if data['count'] == 0:
+        data['count'] = np.nan
+    return data
+# Group the DataFrame by 'team' and count occurrences of each 'captain' within each group
+group = df.groupby('team', observed=False)['captain'].value_counts().reset_index(name='count')
+# Apply the 'captains_func' to each row of the group DataFrame
+# This function replaces 'count' with NaN if the count is 0
+group = group.apply(captains_func, axis=1)
+# Remove rows from the group DataFrame where 'count' is NaN
+group.dropna(inplace=True)
+# Drop the 'count' column from the group DataFrame, leaving only 'team' and 'captain'
+group = group.drop(columns='count')
+group['team'].value_counts()    
+group[group['team'] == 'Liverpool']
+
+df['date'] = pd.to_datetime(df['date'])
+
+# Sort the DataFrame by team and date
+df_sorted = df.sort_values(['team', 'date'])
+
+# Reset the index to reflect the new order
+df_sorted = df_sorted.reset_index(drop=True)
+
+# Verify the sorting
+def verify_sorting(data):
+    # Check if dates are in ascending order for each team
+    is_sorted = data.groupby('team', observed=False)['date'].is_monotonic_increasing.all()
+    
+    if is_sorted:
+        print("Data is correctly sorted by date for each team.")
+    else:
+        print("WARNING: Data is not correctly sorted. Please check for inconsistencies.")
+
+# Run the verification
+verify_sorting(df_sorted)
