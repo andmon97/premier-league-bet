@@ -7,12 +7,13 @@ pd.set_option('display.max_columns', None)
 import warnings
 warnings.filterwarnings('ignore')
 
-DATASET_FOLDER = 'raw'
-FILENAME = 'matches.csv'
+RAW_DATASET_FOLDER = 'raw'
+RAW_FILENAME = 'matches.csv'
+PROCESSED_DATASET_FOLDER = 'processed'
+PROCESSED_FILENAME = 'matches_processed.csv'
 
-file_path = f'{DATASET_FOLDER}/{FILENAME}'
-df = pd.read_csv(file_path)
-
+raw_file_path = f'{RAW_DATASET_FOLDER}/{RAW_FILENAME}'
+df = pd.read_csv(raw_file_path)
 
 
 # looking at the data descriptions notebook, we remove the useless columns and with nan
@@ -227,3 +228,53 @@ df_sorted = get_head_to_head(df_sorted)
 
 # Convert date to day of week
 df_sorted['day_of_week'] = pd.to_datetime(df_sorted['date']).dt.dayofweek
+
+def categorize_time(time):
+    hour = pd.to_datetime(time).hour
+    if hour < 12:
+        return 'early'
+    elif hour < 17:
+        return 'afternoon'
+    else:
+        return 'evening'
+
+df_sorted['time'] = df_sorted['time'].apply(lambda x: x.split(' ')[0])
+df_sorted['time_condition'] = df_sorted['time'].apply(categorize_time)
+df_sorted['time_condition'].value_counts()
+
+
+# compute day since last match 
+df_sorted.groupby('team', observed=False)['date'].count().sort_values(ascending=False)
+df_sorted['days_since_last_match'] = df_sorted.groupby('team', observed=False)['date'].diff().dt.days
+df_sorted['days_since_last_match'] = df_sorted['days_since_last_match'].fillna(0)
+
+# pre training
+processed_file_path = f'{PROCESSED_DATASET_FOLDER}/{PROCESSED_FILENAME}'
+df_sorted.to_csv(processed_file_path, index=False)
+
+columns_to_drop = ['gf', 'ga', 'xg', 'xga', 'poss', 'sh', 'sot', 
+                   'goal_diff', 'day', 'pk', 'pkatt', 'fk', 
+                   'referee', 'dist','points', 'season_winner', 'hour', 'result_encoded', 'day_code']
+df_sorted = df_sorted.drop(columns=columns_to_drop)
+num_cols = df_sorted.select_dtypes(include=np.number).columns
+num_cols = num_cols.drop(['season']) 
+num_cols = num_cols.tolist()
+cat_cols = df_sorted.select_dtypes(exclude=np.number).columns
+cat_cols = cat_cols.drop(['result', 'date'])
+cat_cols = cat_cols.tolist()
+predictors = num_cols + cat_cols
+
+# divide the data into train and test. Use data <= 2023 as train and data > 2023 as test
+df_train = df_sorted[df_sorted['season'] <= 2023]
+df_test = df_sorted[df_sorted['season'] > 2023]
+df_train.to_csv(f'{PROCESSED_DATASET_FOLDER}/train.csv', index=False)
+df_test.to_csv(f'{PROCESSED_DATASET_FOLDER}/test.csv', index=False)
+
+# print the value counts for training and test sets
+print(df_train['season'].value_counts())
+print(df_test['season'].value_counts())
+
+# print the num of features for training and test sets
+print(len(predictors))
+print(len(df_train.columns))
+print(len(df_test.columns))
