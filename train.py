@@ -4,6 +4,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from itertools import product
 import numpy as np
+import pandas as pd
 
 from models.neural_network.neural_network import DynamicNet, train_model, test_model
 from models.hyperparameters.load_hyperparameters import load_hyperparameters
@@ -19,7 +20,10 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     hyperparams = load_hyperparameters(f'{HYPERPARAMETERS_FILE_PATH}{MODEL_NAME}.json')
     data = load_and_clean_data(DATASET_PATH)
-    data_preprocessed = preprocess_data(data)
+    data_features, data_target = preprocess_data(data, TARGET_COLUMN)
+
+    # Combine features and target for splitting
+    data_preprocessed = pd.concat([data_features, data_target], axis=1)
 
     # Split data into train, validation, and test sets
     X_train, X_val, X_test, y_train, y_val, y_test = split_data(data_preprocessed, TARGET_COLUMN)
