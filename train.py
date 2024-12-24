@@ -42,7 +42,7 @@ def main():
     test_loader = DataLoader(TensorDataset(X_test_tensor, y_test_tensor), batch_size=hyperparams['batch_size'][0], shuffle=False)
 
     # Grid search over hyperparameters
-    for lr, epochs, neurons1, neurons2, activation, batch_size in product(
+    for lr, epochs, neurons_1layer, neurons_2layer, activation, batch_size in product(
         hyperparams['learning_rate'],
         hyperparams['epochs'],
         hyperparams['neurons_1layer'],
@@ -50,11 +50,11 @@ def main():
         hyperparams['activation_functions'],
         hyperparams['batch_size']):
         
-        model = DynamicNet(input_dim=X_train.shape[1], neurons1=neurons1, neurons2=neurons2, activation_func=activation)
+        model = DynamicNet(input_dim=X_train.shape[1], neurons_1layer=neurons_1layer, neurons_2layer=neurons_2layer, activation_func=activation)
         optimizer = optim.Adam(model.parameters(), lr=lr)
         criterion = nn.CrossEntropyLoss()
         
-        print(f'Training with lr={lr}, epochs={epochs}, neurons1={neurons1}, neurons2={neurons2}, activation={activation}, batch_size={batch_size}')
+        print(f'Training with lr={lr}, epochs={epochs}, neurons_1layer={neurons_1layer}, neurons_2layer={neurons_2layer}, activation={activation}, batch_size={batch_size}')
         train_model(model, train_loader, val_loader, criterion, optimizer, epochs, device)
         test_model(model, test_loader, criterion, device)
 
