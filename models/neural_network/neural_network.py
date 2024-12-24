@@ -29,7 +29,7 @@ class DynamicNet(nn.Module):
             self.activation1 = nn.Tanh()
 
         self.layer2 = nn.Linear(neurons_1layer, neurons_2layer)
-        self.output_layer = nn.Linear(neurons_2layer, 3)  # Assuming 3 output classes
+        self.output_layer = nn.Linear(neurons_2layer, 3) 
 
     def forward(self, x):
         """
@@ -50,35 +50,93 @@ class DynamicNet(nn.Module):
         x = self.output_layer(x)
         return x
 
-def train_model(model, train_loader, criterion, optimizer, epochs):
+def train_model(model, train_loader, val_loader, criterion, optimizer, epochs, device='cpu'):
     """
-    Trains a neural network model.
+    Trains a neural network model with additional features like validation and early stopping.
 
-    Parameters
-    ----------
-    model : nn.Module
-        The neural network model to be trained.
-    train_loader : DataLoader
-        The DataLoader for loading the training data.
-    criterion : loss function
-        The loss function used to compute the error between the output and target.
-    optimizer : optimizer
-        The optimizer used to update the model parameters.
-    epochs : int
-        The number of epochs to train the model.
+    Parameters:
+    - model (nn.Module): The neural network model to be trained.
+    - train_loader (DataLoader): DataLoader for training data.
+    - val_loader (DataLoader): DataLoader for validation data.
+    - criterion (loss function): Loss function used for training.
+    - optimizer (Optimizer): Optimizer used for updating model weights.
+    - epochs (int): Number of training epochs.
+    - device (str): Device to run the model on ('cpu' or 'cuda').
 
-    Returns
-    -------
-    nn.Module
-        The trained neural network model.
+    Returns:
+    - model (nn.Module): The trained model.
     """
 
-    model.train()
+    model.to(device)
+    best_val_loss = float('inf')
     for epoch in range(epochs):
+        model.train()
+        total_loss = 0
         for inputs, labels in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+            total_loss += loss.item()
+
+        avg_training_loss = total_loss / len(train_loader)
+
+        # Validation phase
+        model.eval()
+        with torch.no_grad():
+            total_val_loss = 0
+            for inputs, labels in val_loader:
+                inputs, labels = inputs.to(device), labels.to(device)
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                total_val_loss += loss.item()
+
+            avg_val_loss = total_val_loss / len(val_loader)
+            print(f"Epoch {epoch+1}: Train Loss = {avg_training_loss:.4f}, Val Loss = {avg_val_loss:.4f}")
+
+            # Save model if validation loss has improved
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                torch.save(model.state_dict(), 'best_model.pth')
+                print("Model saved as validation loss improved.")
+
+        # Optional: Implement early stopping logic here
+
     return model
+
+def test_model(model, test_loader, criterion, device='cpu'):
+    """
+    Tests the neural network model and calculates metrics such as accuracy.
+
+    Parameters:
+    - model (nn.Module): The neural network model to be tested.
+    - test_loader (DataLoader): DataLoader for testing data.
+    - criterion (loss function): Loss function used for evaluating the model.
+    - device (str): Device to run the model on ('cpu' or 'cuda').
+
+    Returns:
+    - None
+    """
+    model.to(device)
+    model.eval()
+    total_test_loss = 0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            total_test_loss += loss.item()
+
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    avg_test_loss = total_test_loss / len(test_loader)
+    accuracy = correct / total
+    print(f'Test Loss: {avg_test_loss:.4f}')
+    print(f'Accuracy: {accuracy:.4f}')
