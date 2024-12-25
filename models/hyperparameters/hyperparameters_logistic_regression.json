@@ -1,0 +1,6 @@
+{
+    "penalty": ["l1", "l2", "elasticnet", "none"],
+    "C": [0.1, 1.0, 10.0],
+    "solver": ["liblinear", "lbfgs"],
+    "max_iter": [100, 200]
+}

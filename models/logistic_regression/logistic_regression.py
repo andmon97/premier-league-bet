@@ -22,18 +22,19 @@ class LogisticRegressionModel:
 
     def train(self, X_train, y_train):
         """
-        Train the logistic regression model.
+        Train the model on the given data.
 
         Parameters
         ----------
         X_train : array-like
-            Training feature set.
+            The training data.
         y_train : array-like
-            Training target labels.
+            The target values.
 
         Returns
         -------
-        None
+        train_metrics : dict
+            A dictionary containing the precision, recall, f1 score, and accuracy of the model on the training data.
         """
         self.model.fit(X_train, y_train)
         predictions = self.model.predict(X_train)
@@ -42,72 +43,34 @@ class LogisticRegressionModel:
 
     def validate(self, X_val, y_val):
         """
-        Validate the logistic regression model and calculate metrics.
+        Validate the model on the given data.
 
         Parameters
         ----------
         X_val : array-like
-            Validation feature set.
+            The validation data.
         y_val : array-like
-            Validation target labels.
+            The target values.
 
         Returns
         -------
-        dict
-            A dictionary containing accuracy and loss.
+        validation_metrics : dict
+            A dictionary containing the precision, recall, f1 score, and accuracy of the model on the validation data.
         """
         predictions = self.model.predict(X_val)
         validation_metrics = compute_metrics(y_val, predictions)
         return validation_metrics
 
     def test(self, X_test, y_test):
-        """
-        Test the logistic regression model and calculate accuracy.
-
-        Parameters
-        ----------
-        X_test : array-like
-            Test feature set.
-        y_test : array-like
-            Test target labels.
-
-        Returns
-        -------
-        dict
-            A dictionary containing accuracy.
-        """
         predictions = self.model.predict(X_test)
         test_metrics = compute_metrics(y_test, predictions)
-        return 
+        return test_metrics
 
     def save_model(self, path):
-        """
-        Save the trained model to a file.
-
-        Parameters
-        ----------
-        path : str
-            Path to save the model file.
-
-        Returns
-        -------
-        None
-        """
         joblib.dump(self.model, path)
         print(f"Model saved to {path}")
 
     def load_model(self, path):
-        """
-        Load a saved logistic regression model from a file.
-
-        Parameters
-        ----------
-        path : str
-            Path to the saved model file.
-
-        Returns
-        -------
-        None
-        """
+        
         self.model = joblib.load(path)
         print(f"Model loaded from {path}")
