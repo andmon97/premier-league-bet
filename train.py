@@ -17,7 +17,7 @@ from sklearn.preprocessing import LabelEncoder
 HYPERPARAMETERS_FILE_PATH = 'models/hyperparameters/hyperparameters_'
 DATASET_PATH = 'data/processed/matches_processed.csv'
 TARGET_COLUMN = 'result'
-MODEL_NAMES = [ 'neural_network', 'logistic_regression']  # List of algorithms
+MODEL_NAMES = [ 'logistic_regression', 'neural_network']  # List of algorithms
 
 def neural_network_workflow(device, X_train, X_val, X_test, y_train, y_val, y_test, hyperparams):
     """
@@ -152,6 +152,8 @@ def logistic_regression_workflow(X_train, X_val, X_test, y_train, y_val, y_test,
             hyperparams['max_iter']):
         if solver == 'lbfgs' and penalty not in ['none', 'l2']:
             continue
+        if solver == 'liblinear' and penalty in ['none']:
+            continue
         penalty_to_use = None if penalty == 'none' else penalty
 
         config_name = f"penalty={penalty}_C={C}_solver={solver}_max_iter={max_iter}"
@@ -178,26 +180,6 @@ def logistic_regression_workflow(X_train, X_val, X_test, y_train, y_val, y_test,
         best_model.save_model(best_model_path)
         print(f"Best model saved: {best_model_path}")
 
-        # --- Existing code for saving metrics to _metrics.txt ---
-        metrics_file_path = os.path.splitext(best_model_path)[0] + "_metrics.txt"
-        with open(metrics_file_path, "w") as f:
-            f.write(f"Best Configuration: {best_config}\n\n")
-
-            f.write("=== Training Metrics ===\n")
-            for k, v in best_metrics["train_metrics"].items():
-                f.write(f"{k}: {v}\n")
-
-            f.write("\n=== Validation Metrics ===\n")
-            for k, v in best_metrics["val_metrics"].items():
-                f.write(f"{k}: {v}\n")
-
-            f.write("\n=== Test Metrics ===\n")
-            for k, v in best_metrics["test_metrics"].items():
-                f.write(f"{k}: {v}\n")
-
-        print(f"Metrics saved to: {metrics_file_path}")
-
-        # --- New code for calling the utility function ---
         save_metrics_to_txt(best_metrics, best_config, "logistic_regression", output_dir)
     else:
         print("No valid model was found or no improvement over initial baseline.")
