@@ -9,6 +9,7 @@ import os
 
 from models.neural_network.neural_network import DynamicNet, train_model, test_model
 from models.logistic_regression.logistic_regression import LogisticRegressionModel
+from models.svm.svm import SVMModel
 from models.hyperparameters.load_hyperparameters import load_hyperparameters
 from data.data_preparation import load_and_clean_data, preprocess_data, split_data
 from utils.metrics import save_metrics_to_txt
@@ -17,7 +18,7 @@ from sklearn.preprocessing import LabelEncoder
 HYPERPARAMETERS_FILE_PATH = 'models/hyperparameters/hyperparameters_'
 DATASET_PATH = 'data/processed/matches_processed.csv'
 TARGET_COLUMN = 'result'
-MODEL_NAMES = [ 'logistic_regression', 'neural_network']  # List of algorithms
+MODEL_NAMES = [ 'svm']  # List of algorithms
 
 def neural_network_workflow(device, X_train, X_val, X_test, y_train, y_val, y_test, hyperparams):
     """
@@ -186,8 +187,89 @@ def logistic_regression_workflow(X_train, X_val, X_test, y_train, y_val, y_test,
     
     return best_metrics, best_config, best_model_path
 
+def svm_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams):
+    """
+    Train and evaluate an SVM model with various hyperparameters.
+    Only the best model (based on validation F1-score) is saved to disk,
+    along with a .txt file containing train, validation, and test metrics.
 
+    Returns
+    -------
+    best_metrics : dict
+        The metrics of the best configuration (train, validation, and test).
+    best_config : str
+        The hyperparameter configuration that achieved the best validation F1-score.
+    best_model_path : str
+        The path where the best model is saved.
+    """
+    output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
 
+    best_val_f1 = -1
+    best_config = None
+    best_metrics = None
+    best_model = None
+    best_model_path = None
+
+    # Extract parameters from hyperparams
+    for C in hyperparams["C"]:
+        for kernel in hyperparams["kernel"]:
+            for gamma in hyperparams["gamma"]:
+                for degree in hyperparams["degree"]:
+                    # If kernel != 'poly', 'degree' won't matter, but let's skip an invalid combo if desired
+                    if kernel != 'poly' and degree != 3:
+                        # Optionally continue or skip
+                        pass
+
+                    config_name = f"C={C}_kernel={kernel}_gamma={gamma}_degree={degree}"
+                    print(f"Training SVM: {config_name}")
+
+                    # Initialize and train the model
+                    model = SVMModel(C=C, kernel=kernel, gamma=gamma, degree=degree)
+                    train_metrics = model.train(X_train, y_train)
+                    val_metrics = model.validate(X_val, y_val)
+                    test_metrics = model.test(X_test, y_test)
+
+                    # Compare validation F1-score
+                    val_f1 = val_metrics['f1_score']
+                    if val_f1 > best_val_f1:
+                        best_val_f1 = val_f1
+                        best_config = config_name
+                        best_metrics = {
+                            "train_metrics": train_metrics,
+                            "val_metrics": val_metrics,
+                            "test_metrics": test_metrics
+                        }
+                        best_model = model
+
+    # After all hyperparameter combos, save the best model + metrics
+    if best_model is not None:
+        best_model_path = os.path.join(output_dir, f"svm_{best_config}.pkl")
+        best_model.save_model(best_model_path)
+
+        # Write .txt file containing the metrics
+        metrics_file_path = os.path.splitext(best_model_path)[0] + "_metrics.txt"
+        with open(metrics_file_path, "w") as f:
+            f.write(f"Best Configuration: {best_config}\n\n")
+
+            f.write("=== Training Metrics ===\n")
+            for k, v in best_metrics["train_metrics"].items():
+                f.write(f"{k}: {v}\n")
+
+            f.write("\n=== Validation Metrics ===\n")
+            for k, v in best_metrics["val_metrics"].items():
+                f.write(f"{k}: {v}\n")
+
+            f.write("\n=== Test Metrics ===\n")
+            for k, v in best_metrics["test_metrics"].items():
+                f.write(f"{k}: {v}\n")
+
+        print(f"Best model saved to: {best_model_path}")
+        print(f"Metrics saved to: {metrics_file_path}")
+    else:
+        print("No valid SVM model found or no improvement over baseline.")
+
+    return best_metrics, best_config, best_model_path
 
 def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -216,6 +298,9 @@ def main():
 
         elif model_name == 'logistic_regression':
             logistic_regression_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams)
+
+        elif model_name == 'svm':
+            svm_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams)
 
 
 if __name__ == '__main__':
