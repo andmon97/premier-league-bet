@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from itertools import product
+from utils.metrics import compute_metrics
 
 class DynamicNet(nn.Module):
     def __init__(self, input_dim, neurons_1layer, neurons_2layer, activation_func):
@@ -52,26 +53,39 @@ class DynamicNet(nn.Module):
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, epochs, device='cpu'):
     """
-    Trains a neural network model with additional features like validation and early stopping.
+    Trains a neural network model with additional features like validation metrics.
 
-    Parameters:
-    - model (nn.Module): The neural network model to be trained.
-    - train_loader (DataLoader): DataLoader for training data.
-    - val_loader (DataLoader): DataLoader for validation data.
-    - criterion (loss function): Loss function used for training.
-    - optimizer (Optimizer): Optimizer used for updating model weights.
-    - epochs (int): Number of training epochs.
-    - device (str): Device to run the model on ('cpu' or 'cuda').
+    Parameters
+    ----------
+    model : nn.Module
+        The neural network model to be trained.
+    train_loader : DataLoader
+        DataLoader for training data.
+    val_loader : DataLoader
+        DataLoader for validation data.
+    criterion : loss function
+        Loss function used for training.
+    optimizer : Optimizer
+        Optimizer used for updating model weights.
+    epochs : int
+        Number of training epochs.
+    device : str
+        Device to run the model on ('cpu' or 'cuda').
 
-    Returns:
-    - model (nn.Module): The trained model.
+    Returns
+    -------
+    dict
+        Dictionary containing training and validation metrics for each epoch.
     """
-
     model.to(device)
-    best_val_loss = float('inf')
+    metrics_history = {'train': [], 'validation': []}
+
     for epoch in range(epochs):
+        # Training Phase
         model.train()
         total_loss = 0
+        all_preds, all_labels = [], []
+
         for inputs, labels in train_loader:
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
@@ -81,49 +95,65 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, epochs, d
             optimizer.step()
             total_loss += loss.item()
 
-        avg_training_loss = total_loss / len(train_loader)
+            _, predicted = torch.max(outputs.data, 1)
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
-        # Validation phase
+        avg_training_loss = total_loss / len(train_loader)
+        train_metrics = compute_metrics(all_labels, all_preds)
+
+        # Validation Phase
         model.eval()
+        total_val_loss = 0
+        val_preds, val_labels = [], []
+
         with torch.no_grad():
-            total_val_loss = 0
             for inputs, labels in val_loader:
                 inputs, labels = inputs.to(device), labels.to(device)
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
                 total_val_loss += loss.item()
 
-            avg_val_loss = total_val_loss / len(val_loader)
-            print(f"Epoch {epoch+1}: Train Loss = {avg_training_loss:.4f}, Val Loss = {avg_val_loss:.4f}")
+                _, predicted = torch.max(outputs.data, 1)
+                val_preds.extend(predicted.cpu().numpy())
+                val_labels.extend(labels.cpu().numpy())
 
-            # Save model if validation loss has improved
-            if avg_val_loss < best_val_loss:
-                best_val_loss = avg_val_loss
-                torch.save(model.state_dict(), 'best_model.pth')
-                print("Model saved as validation loss improved.")
+        avg_val_loss = total_val_loss / len(val_loader)
+        val_metrics = compute_metrics(val_labels, val_preds)
 
-        # Optional: Implement early stopping logic here
+        # Store Metrics
+        metrics_history['train'].append({'loss': avg_training_loss, **train_metrics})
+        metrics_history['validation'].append({'loss': avg_val_loss, **val_metrics})
 
-    return model
+        print(f"Epoch {epoch+1}: Train Loss = {avg_training_loss:.4f}, Train Metrics = {train_metrics}")
+        print(f"Validation Loss = {avg_val_loss:.4f}, Validation Metrics = {val_metrics}")
+
+    return metrics_history
 
 def test_model(model, test_loader, criterion, device='cpu'):
     """
-    Tests the neural network model and calculates metrics such as accuracy.
+    Tests the neural network model and calculates metrics.
 
-    Parameters:
-    - model (nn.Module): The neural network model to be tested.
-    - test_loader (DataLoader): DataLoader for testing data.
-    - criterion (loss function): Loss function used for evaluating the model.
-    - device (str): Device to run the model on ('cpu' or 'cuda').
+    Parameters
+    ----------
+    model : nn.Module
+        The neural network model to be tested.
+    test_loader : DataLoader
+        DataLoader for testing data.
+    criterion : loss function
+        Loss function used for evaluating the model.
+    device : str
+        Device to run the model on ('cpu' or 'cuda').
 
-    Returns:
-    - None
+    Returns
+    -------
+    dict
+        Dictionary containing test metrics.
     """
     model.to(device)
     model.eval()
     total_test_loss = 0
-    correct = 0
-    total = 0
+    all_preds, all_labels = [], []
 
     with torch.no_grad():
         for inputs, labels in test_loader:
@@ -133,10 +163,13 @@ def test_model(model, test_loader, criterion, device='cpu'):
             total_test_loss += loss.item()
 
             _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
     avg_test_loss = total_test_loss / len(test_loader)
-    accuracy = correct / total
-    print(f'Test Loss: {avg_test_loss:.4f}')
-    print(f'Accuracy: {accuracy:.4f}')
+    test_metrics = compute_metrics(all_labels, all_preds)
+    test_metrics['loss'] = avg_test_loss
+
+    print(f'Test Loss: {avg_test_loss:.4f}, Test Metrics: {test_metrics}')
+    return test_metrics
+

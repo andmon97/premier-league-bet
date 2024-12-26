@@ -1,6 +1,6 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler
 
 def load_and_clean_data(filepath):
     """
@@ -77,7 +77,7 @@ def split_data(features, target, season, test_season=2024, val_size=0.25, random
     features : pd.DataFrame
         The preprocessed feature data.
     target : pd.Series
-        The target column.
+        The encoded target column.
     season : pd.Series
         The season column.
     test_season : int
@@ -92,18 +92,31 @@ def split_data(features, target, season, test_season=2024, val_size=0.25, random
     tuple
         The training, validation, and testing data (X_train, X_val, X_test, y_train, y_val, y_test).
     """
+    # Ensure indices are aligned
+    features = features.reset_index(drop=True)
+    target = target.reset_index(drop=True)
+    season = season.reset_index(drop=True)
+
     # Separate test data
     train_val_mask = (season != test_season)
     test_mask = ~train_val_mask
 
-    X_train_val = features[train_val_mask]
-    y_train_val = target[train_val_mask]
-    X_test = features[test_mask]
-    y_test = target[test_mask]
+    X_train_val = features[train_val_mask].reset_index(drop=True)
+    y_train_val = target[train_val_mask].reset_index(drop=True)
+    X_test = features[test_mask].reset_index(drop=True)
+    y_test = target[test_mask].reset_index(drop=True)
 
     # Stratified train-validation split
     X_train, X_val, y_train, y_val = train_test_split(
         X_train_val, y_train_val, test_size=val_size, stratify=y_train_val, random_state=random_state
     )
+
+    # Reset indices to ensure contiguous indexing
+    X_train = X_train.reset_index(drop=True)
+    X_val = X_val.reset_index(drop=True)
+    X_test = X_test.reset_index(drop=True)
+    y_train = pd.Series(y_train).reset_index(drop=True)
+    y_val = pd.Series(y_val).reset_index(drop=True)
+    y_test = pd.Series(y_test).reset_index(drop=True)
 
     return X_train, X_val, X_test, y_train, y_val, y_test
