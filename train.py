@@ -73,7 +73,7 @@ def logistic_regression_workflow(X_train, X_val, X_test, y_train, y_val, y_test,
                 hyperparams['solver'],
                 hyperparams['max_iter']):
         if solver == 'lbfgs' and penalty not in ['none', 'l2']:
-            break
+            continue
         if penalty == 'none':
             penalty = None
         model = LogisticRegressionModel(penalty=penalty, C=C, solver=solver, max_iter=max_iter)
