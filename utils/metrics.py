@@ -30,7 +30,7 @@ def compute_metrics(y_true, y_pred, y_prob=None, average='weighted'):
         Dictionary containing precision, recall, F1-score, and AUC-ROC (if y_prob is provided).
     """
     metrics = {
-        'precision': precision_score(y_true, y_pred, average=average),
+        'precision': precision_score(y_true, y_pred, average=average, zero_division=0),
         'recall': recall_score(y_true, y_pred, average=average),
         'f1_score': f1_score(y_true, y_pred, average=average),
     }

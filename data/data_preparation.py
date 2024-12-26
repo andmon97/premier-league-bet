@@ -19,7 +19,7 @@ def load_and_clean_data(filepath):
     data = pd.read_csv(filepath)
     columns_to_drop = ['gf', 'ga', 'xg', 'xga', 'poss', 'sh', 'sot', 
                        'goal_diff', 'day', 'pk', 'pkatt', 'fk', 
-                       'referee', 'dist', 'points', 'season_winner', 'hour', 'result_encoded', 'day_code', 'season']
+                       'referee', 'dist', 'points', 'season_winner', 'hour', 'result_encoded', 'day_code']
     data.drop(columns=columns_to_drop, inplace=True, errors='ignore')
     data.dropna(inplace=True)
     data.columns = data.columns.str.strip()
@@ -41,10 +41,12 @@ def preprocess_data(data, target_col, threshold=100):
     Returns
     -------
     tuple
-        The preprocessed features (pd.DataFrame) and the unaltered target column (pd.Series).
+        The preprocessed features (pd.DataFrame), unaltered target column (pd.Series), and the season column.
     """
-    # Exclude the target column during preprocessing
-    features = data.drop(columns=[target_col])
+    # Keep the target and season columns separate during preprocessing
+    target = data[target_col]
+    season = data['season']
+    features = data.drop(columns=[target_col, 'season'])
 
     # Identify categorical and numerical columns
     categorical_cols = features.select_dtypes(include=['object', 'category']).columns.tolist()
@@ -64,20 +66,22 @@ def preprocess_data(data, target_col, threshold=100):
 
     # Combine processed features
     processed_features = pd.concat([data_categorical, features[numerical_cols]], axis=1)
-    return processed_features, data[target_col]
+    return processed_features, target, season
 
-def split_data(data, target_col='result', test_size=0.2, val_size=0.25, random_state=42):
+def split_data(features, target, season, test_season=2024, val_size=0.25, random_state=42):
     """
-    Splits data into training, validation, and testing sets.
+    Splits data into training, validation, and testing sets based on seasons.
 
     Parameters
     ----------
-    data : pd.DataFrame
-        The preprocessed data.
-    target_col : str
-        The name of the target column.
-    test_size : float
-        The proportion of the data to include in the test set.
+    features : pd.DataFrame
+        The preprocessed feature data.
+    target : pd.Series
+        The target column.
+    season : pd.Series
+        The season column.
+    test_season : int
+        The season to be used for the test set.
     val_size : float
         The proportion of the training data to include in the validation set.
     random_state : int
@@ -88,13 +92,18 @@ def split_data(data, target_col='result', test_size=0.2, val_size=0.25, random_s
     tuple
         The training, validation, and testing data (X_train, X_val, X_test, y_train, y_val, y_test).
     """
-    X = data.drop(columns=[target_col])
-    y = LabelEncoder().fit_transform(data[target_col])
+    # Separate test data
+    train_val_mask = (season != test_season)
+    test_mask = ~train_val_mask
 
-    # First split: train+validation and test
-    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+    X_train_val = features[train_val_mask]
+    y_train_val = target[train_val_mask]
+    X_test = features[test_mask]
+    y_test = target[test_mask]
 
-    # Second split: train and validation
-    X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, test_size=val_size, random_state=random_state)
+    # Stratified train-validation split
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train_val, y_train_val, test_size=val_size, stratify=y_train_val, random_state=random_state
+    )
 
     return X_train, X_val, X_test, y_train, y_val, y_test
