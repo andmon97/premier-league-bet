@@ -1,0 +1,7 @@
+{
+    "n_neighbors": [3, 5, 7],
+    "weights": ["uniform", "distance"],
+    "algorithm": ["auto"],
+    "leaf_size": [30, 50],
+    "p": [1, 2]
+}
