@@ -28,7 +28,7 @@ def compute_metrics(y_true, y_pred, y_prob=None, average='weighted'):
     Returns:
     -------
     metrics : dict
-        Dictionary containing precision, recall, F1-score, and AUC-ROC (if y_prob is provided).
+        Dictionary containing accuracy, precision, recall, F1-score, and AUC-ROC (if y_prob is provided).
     """
     metrics = {
         'acccuracy': accuracy_score(y_true, y_pred),
