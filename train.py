@@ -20,7 +20,7 @@ from sklearn.preprocessing import LabelEncoder
 HYPERPARAMETERS_FILE_PATH = 'models/hyperparameters/hyperparameters_'
 DATASET_PATH = 'data/processed/matches_processed.csv'
 TARGET_COLUMN = 'result'
-MODEL_NAMES = ['random_forest']  # List of algorithms
+MODEL_NAMES = ['neural_network', 'logistic_regression', 'svm', 'random_forest', 'gradient_boosting']
 
 def neural_network_workflow(device, X_train, X_val, X_test, y_train, y_val, y_test, hyperparams):
     """
