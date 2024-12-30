@@ -11,6 +11,7 @@ from models.neural_network.neural_network import DynamicNet, train_model, test_m
 from models.logistic_regression.logistic_regression import LogisticRegressionModel
 from models.svm.svm import SVMModel
 from models.random_forest.random_forest import RandomForestModel
+from models.gradient_boosting.gradient_boosting import GradientBoostingModel
 from models.hyperparameters.load_hyperparameters import load_hyperparameters
 from data.data_preparation import load_and_clean_data, preprocess_data, split_data
 from utils.metrics import save_metrics_to_txt
@@ -370,6 +371,103 @@ def random_forest_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyper
 
     return best_metrics, best_config, best_model_path
 
+def gradient_boosting_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams):
+    """
+    Train and evaluate a Gradient Boosting model with various hyperparameters.
+    Only the best model (based on validation F1-score) is saved to disk,
+    along with a .txt file containing train, validation, and test metrics.
+
+    Returns
+    -------
+    best_metrics : dict
+        The metrics of the best configuration (train, validation, and test).
+    best_config : str
+        The hyperparameter configuration that achieved the best validation F1-score.
+    best_model_path : str
+        The path where the best model is saved.
+    """
+    output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
+
+    best_val_f1 = -1
+    best_config = None
+    best_metrics = None
+    best_model = None
+    best_model_path = None
+
+    # Iterate over hyperparameter combinations
+    for loss in hyperparams["loss"]:
+        for learning_rate in hyperparams["learning_rate"]:
+            for n_estimators in hyperparams["n_estimators"]:
+                for subsample in hyperparams["subsample"]:
+                    for criterion in hyperparams["criterion"]:
+                        for min_samples_split in hyperparams["min_samples_split"]:
+                            for min_samples_leaf in hyperparams["min_samples_leaf"]:
+                                for max_depth in hyperparams["max_depth"]:
+
+                                    config_name = (f"loss={loss}_lr={learning_rate}_n_est={n_estimators}_sub={subsample}_"
+                                                   f"crit={criterion}_min_split={min_samples_split}_"
+                                                   f"min_leaf={min_samples_leaf}_depth={max_depth}")
+                                    print(f"Training Gradient Boosting: {config_name}")
+
+                                    # Convert null (None) if loaded from JSON
+                                    max_depth_py = None if max_depth is None else max_depth
+
+                                    model = GradientBoostingModel(
+                                        loss=loss,
+                                        learning_rate=learning_rate,
+                                        n_estimators=n_estimators,
+                                        subsample=subsample,
+                                        criterion=criterion,
+                                        min_samples_split=min_samples_split,
+                                        min_samples_leaf=min_samples_leaf,
+                                        max_depth=max_depth_py
+                                    )
+
+                                    # Train, validate, and test
+                                    train_metrics = model.train(X_train, y_train)
+                                    val_metrics = model.validate(X_val, y_val)
+                                    test_metrics = model.test(X_test, y_test)
+
+                                    val_f1 = val_metrics["f1_score"]
+                                    if val_f1 > best_val_f1:
+                                        best_val_f1 = val_f1
+                                        best_config = config_name
+                                        best_metrics = {
+                                            "train_metrics": train_metrics,
+                                            "val_metrics": val_metrics,
+                                            "test_metrics": test_metrics
+                                        }
+                                        best_model = model
+
+    # Save the best model and metrics
+    if best_model is not None:
+        best_model_path = os.path.join(output_dir, f"gradient_boosting_{best_config}.pkl")
+        best_model.save_model(best_model_path)
+
+        # Also save metrics to a .txt file
+        metrics_file_path = os.path.splitext(best_model_path)[0] + "_metrics.txt"
+        with open(metrics_file_path, "w") as f:
+            f.write(f"Best Configuration: {best_config}\n\n")
+
+            f.write("=== Training Metrics ===\n")
+            for k, v in best_metrics["train_metrics"].items():
+                f.write(f"{k}: {v}\n")
+
+            f.write("\n=== Validation Metrics ===\n")
+            for k, v in best_metrics["val_metrics"].items():
+                f.write(f"{k}: {v}\n")
+
+            f.write("\n=== Test Metrics ===\n")
+            for k, v in best_metrics["test_metrics"].items():
+                f.write(f"{k}: {v}\n")
+
+        print(f"Best model saved to: {best_model_path}")
+        print(f"Metrics saved to: {metrics_file_path}")
+    else:
+        print("No valid Gradient Boosting model found or no improvement over initial baseline.")
+
+    return best_metrics, best_config, best_model_path
 
 def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -404,6 +502,9 @@ def main():
 
         elif model_name == 'random_forest':
             random_forest_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams)
+
+        elif model_name == 'gradient_boosting':
+            gradient_boosting_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams)
 
 
 if __name__ == '__main__':
