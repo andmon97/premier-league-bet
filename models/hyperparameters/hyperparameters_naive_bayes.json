@@ -1,5 +1,5 @@
 {
-    "nb_type": ["gaussian", "multinomial", "bernoulli"],
+    "nb_type": ["gaussian","bernoulli"],
     "alpha": [1.0, 0.5],
     "var_smoothing": [1e-9, 1e-7]
 }
