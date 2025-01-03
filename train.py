@@ -14,6 +14,7 @@ from models.random_forest.random_forest import RandomForestModel
 from models.gradient_boosting.gradient_boosting import GradientBoostingModel
 from models.knn.knn import KNNModel
 from models.naive_bayes.naive_bayes import NaiveBayesModel
+from models.decision_tree.decision_tree import DecisionTreeModel
 from models.hyperparameters.load_hyperparameters import load_hyperparameters
 from data.data_preparation import load_and_clean_data, preprocess_data, split_data
 from utils.metrics import save_metrics_to_txt
@@ -22,7 +23,8 @@ from sklearn.preprocessing import LabelEncoder
 HYPERPARAMETERS_FILE_PATH = 'models/hyperparameters/hyperparameters_'
 DATASET_PATH = 'data/processed/matches_processed.csv'
 TARGET_COLUMN = 'result'
-MODEL_NAMES = ['neural_network', 'logistic_regression', 'svm', 'random_forest', 'gradient_boosting', 'knn', 'naive_bayes']
+MODEL_NAMES = ['neural_network', 'logistic_regression', 'svm', 'random_forest', 'gradient_boosting', 'knn', 'naive_bayes', 
+               'decision_tree']
 
 def neural_network_workflow(device, X_train, X_val, X_test, y_train, y_val, y_test, hyperparams):
     """
@@ -552,6 +554,102 @@ def knn_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams):
 
     return best_metrics, best_config, best_model_path
 
+def decision_tree_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams):
+    """
+    Train and evaluate a Decision Tree model with various hyperparameters.
+    Only the best model (based on validation F1-score) is saved to disk,
+    along with a .txt file containing train, validation, and test metrics.
+
+    Returns
+    -------
+    best_metrics : dict
+        The metrics of the best configuration (train, validation, test).
+    best_config : str
+        The hyperparameter configuration that achieved the best validation F1-score.
+    best_model_path : str
+        The path where the best model is saved.
+    """
+    output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
+
+    best_val_f1 = -1
+    best_config = None
+    best_metrics = None
+    best_model = None
+    best_model_path = None
+
+    for criterion in hyperparams["criterion"]:
+        for splitter in hyperparams["splitter"]:
+            for max_depth in hyperparams["max_depth"]:
+                # convert null from JSON to None in Python
+                max_depth_py = None if max_depth is None else max_depth
+
+                for min_samples_split in hyperparams["min_samples_split"]:
+                    for min_samples_leaf in hyperparams["min_samples_leaf"]:
+                        for max_features in hyperparams["max_features"]:
+                            max_features_py = None if max_features is None else max_features
+
+                            config_name = (
+                                f"criterion={criterion}_splitter={splitter}_max_depth={max_depth_py}_"
+                                f"min_split={min_samples_split}_min_leaf={min_samples_leaf}_"
+                                f"max_features={max_features_py}"
+                            )
+                            print(f"Training Decision Tree: {config_name}")
+
+                            model = DecisionTreeModel(
+                                criterion=criterion,
+                                splitter=splitter,
+                                max_depth=max_depth_py,
+                                min_samples_split=min_samples_split,
+                                min_samples_leaf=min_samples_leaf,
+                                max_features=max_features_py
+                            )
+
+                            # Train, validate, test
+                            train_metrics = model.train(X_train, y_train)
+                            val_metrics = model.validate(X_val, y_val)
+                            test_metrics = model.test(X_test, y_test)
+
+                            val_f1 = val_metrics["f1_score"]
+                            if val_f1 > best_val_f1:
+                                best_val_f1 = val_f1
+                                best_config = config_name
+                                best_metrics = {
+                                    "train_metrics": train_metrics,
+                                    "val_metrics": val_metrics,
+                                    "test_metrics": test_metrics
+                                }
+                                best_model = model
+
+    # Save the best model + metrics if found
+    if best_model is not None:
+        best_model_path = os.path.join(output_dir, f"decision_tree_{best_config}.pkl")
+        best_model.save_model(best_model_path)
+        print(f"Best model saved: {best_model_path}")
+
+        # Also save metrics to a .txt file
+        metrics_file_path = os.path.splitext(best_model_path)[0] + "_metrics.txt"
+        with open(metrics_file_path, "w") as f:
+            f.write(f"Best Configuration: {best_config}\n\n")
+
+            f.write("=== Training Metrics ===\n")
+            for k, v in best_metrics["train_metrics"].items():
+                f.write(f"{k}: {v}\n")
+
+            f.write("\n=== Validation Metrics ===\n")
+            for k, v in best_metrics["val_metrics"].items():
+                f.write(f"{k}: {v}\n")
+
+            f.write("\n=== Test Metrics ===\n")
+            for k, v in best_metrics["test_metrics"].items():
+                f.write(f"{k}: {v}\n")
+
+        print(f"Metrics saved to: {metrics_file_path}")
+    else:
+        print("No valid Decision Tree model found or no improvement over baseline.")
+
+    return best_metrics, best_config, best_model_path
+
 def naive_bayes_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams):
     """
     Train and evaluate a Naive Bayes model with various hyperparameters.
@@ -696,6 +794,9 @@ def main():
 
         elif model_name == 'naive_bayes':
             naive_bayes_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams)
+
+        elif model_name == 'decision_tree':
+            decision_tree_workflow(X_train, X_val, X_test, y_train, y_val, y_test, hyperparams)
 
 if __name__ == '__main__':
     main()
